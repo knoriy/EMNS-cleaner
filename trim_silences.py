@@ -12,6 +12,8 @@ from textgrids import TextGrid
 
 NUM_CORES = mp.cpu_count()
 DEBUG = False
+ACODEC = "opus"
+
 
 @dataclass
 class WavFile:
@@ -44,14 +46,15 @@ def trim_audio(in_filename: str, out_filename: str, start: float, end: float) ->
             ffmpeg
             .input(in_filename)
             .audio
-            .filter('atrim', start=start, end=end)
-            .output(out_filename)
+            .filter('atrim', start=start, end=end+0.5)
+            .output(out_filename, strict='-2', acodec=ACODEC)
             .run(quiet=not DEBUG, overwrite_output=True)
         )
 
         return True
     except ffmpeg.Error as e:
         print(f"ffmpeg could not process file {in_filename}: {e}")
+        exit()
         return False
 
 
@@ -109,6 +112,7 @@ def parse_args(args):
     parser.add_argument('flist', type=str, help="CSV file containing a list of paths to raw audio files. These paths will be interpreted as relative to MEDIA_ROOT")
     parser.add_argument('out_dir', type=str, help="Output directory to store trimmed audio - files will have the same name as in the filelist")
     parser.add_argument('-c', '--criterion', default="Complete", choices=["Complete", "Pending", "Awaiting Review", "Needs Updating"], help="only gather files that have been marked according to the supplied criterion")
+    parser.add_argument('-ac', '--acodec', default="opus", help="Codec to use when encoding and decoding audio")
     parser.add_argument('-d', '--debug', action="store_true", default=False, help="disables ffmpeg quiet mode")
     return parser.parse_args(args)
 
@@ -118,6 +122,8 @@ if __name__=="__main__":
     files, skipped = get_filenames_to_process(args.media_root, args.flist, args.out_dir, args.criterion)
     print(f"Will process {len(files)} files (skipped {skipped} based on criterion `{args.criterion}`)")
     DEBUG = args.debug
+    ACODEC = args.acodec
+
 
 
     pool = mp.Pool(NUM_CORES)
