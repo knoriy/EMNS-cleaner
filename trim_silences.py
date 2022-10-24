@@ -3,6 +3,7 @@ import argparse
 from pathlib import Path
 import multiprocessing as mp
 from dataclasses import dataclass
+from functools import partial
 
 import ffmpeg
 from tqdm import tqdm
@@ -39,14 +40,14 @@ def get_speech_bounds(filename: str) -> (str, str):
     return (float(speech_start_time), float(speech_end_time )) # seconds
      
 
-def trim_audio(in_filename: str, out_filename: str, start: float, end: float) -> bool:
+def trim_audio(in_filename: str, out_filename: str, start: float, end: float, start_pad=0.0, end_pad=0.0) -> bool:
     if DEBUG: print(start, end, in_filename)
     try:
         (
             ffmpeg
             .input(in_filename)
             .audio
-            .filter('atrim', start=start, end=end+0.5)
+            .filter('atrim', start=start-start_pad, end=end+end_pad)
             .output(out_filename, strict='-2', acodec=ACODEC)
             .run(quiet=not DEBUG, overwrite_output=True)
         )
@@ -101,9 +102,9 @@ def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criterio
     return filenames, skipped
 
 
-def process_file(wavfile):
+def process_file(wavfile, start_pad=0.0, end_pad=0.0):
     s, e = get_speech_bounds(wavfile.textgrid_path)
-    return (trim_audio(wavfile.raw_path, wavfile.out_path, s, e), wavfile.raw_path)
+    return (trim_audio(wavfile.raw_path, wavfile.out_path, s, e, start_pad, end_pad), wavfile.raw_path)
     
 
 def parse_args(args):
@@ -113,6 +114,8 @@ def parse_args(args):
     parser.add_argument('out_dir', type=str, help="Output directory to store trimmed audio - files will have the same name as in the filelist")
     parser.add_argument('-c', '--criterion', default="Complete", choices=["Complete", "Pending", "Awaiting Review", "Needs Updating"], help="only gather files that have been marked according to the supplied criterion")
     parser.add_argument('-ac', '--acodec', default="opus", help="Codec to use when encoding and decoding audio")
+    parser.add_argument('-sp', '--start_padding', type=float, default=0.0, help="pad begining of audio")
+    parser.add_argument('-ep', '--end_padding', type=float, default=0.5, help="pad end of audio")
     parser.add_argument('-d', '--debug', action="store_true", default=False, help="disables ffmpeg quiet mode")
     return parser.parse_args(args)
 
@@ -127,7 +130,8 @@ if __name__=="__main__":
 
 
     pool = mp.Pool(NUM_CORES)
-    results = pool.map(process_file, tqdm(files))
+    # results = pool.map(process_file, tqdm(files))
+    results = pool.map(partial(process_file, end_pad=args.end_padding), tqdm(files))
     pool.close()
     pool.join()
     failed_files = [r[1] for r in results if not r[0]]
