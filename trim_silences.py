@@ -65,7 +65,7 @@ def get_field_index(header: [str], to_find: str) -> int:
     assert False, f"{to_find} does not exist in the header: {header}"
 
 
-def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criterion="Complete") -> [(str, str, str)]:
+def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criteria=["Complete"]) -> [(str, str, str)]:
     outdir_abs = Path(outdir).resolve()
     rd = Path(root_dir).resolve()
     filenames = [] # list of tuples of absolute filepaths (in_filename, textgrid_filename, out_filename)
@@ -83,7 +83,7 @@ def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criterio
                 status_idx = get_field_index(line, "status")
             else:
                 # rest of file
-                if line[status_idx] == criterion:
+                if line[status_idx] in criteria:
                     wav_path_abs = rd / line[filepath_idx]
                     stem = wav_path_abs.stem
                     name = wav_path_abs.name
@@ -108,17 +108,19 @@ def parse_args(args):
     parser.add_argument('media_root', type=str, help="root directory of the raw audio and textgrid files")
     parser.add_argument('flist', type=str, help="CSV file containing a list of paths to raw audio files. These paths will be interpreted as relative to MEDIA_ROOT")
     parser.add_argument('out_dir', type=str, help="Output directory to store trimmed audio - files will have the same name as in the filelist")
-    parser.add_argument('-c', '--criterion', default="Complete", choices=["Complete", "Pending", "Awaiting Review", "Needs Updating"], help="only gather files that have been marked according to the supplied criterion")
+    parser.add_argument('-c', '--criteria', nargs="+", choices=["Complete", "Pending", "Awaiting Review", "Needs Updating"], help="only gather files that have been marked according to the supplied criteria")
     parser.add_argument('-d', '--debug', action="store_true", default=False, help="disables ffmpeg quiet mode")
     return parser.parse_args(args)
 
 if __name__=="__main__":
     args = parse_args(sys.argv[1:])
     print("Gathering filenames to process...")
-    files, skipped = get_filenames_to_process(args.media_root, args.flist, args.out_dir, args.criterion)
-    print(f"Will process {len(files)} files (skipped {skipped} based on criterion `{args.criterion}`)")
+    if args.criteria != ["Complete"]:
+        incomplete_flags=set(args.criteria).difference(set(["Complete"]))
+        print(f"WARNING: Including incomplete/unverified audio clips with statuses in {incomplete_flags}- script may fail.")
+    files, skipped = get_filenames_to_process(args.media_root, args.flist, args.out_dir, args.criteria)
+    print(f"Will process {len(files)} files (skipped {skipped} because their status was not one of {args.criteria})")
     DEBUG = args.debug
-
 
     pool = mp.Pool(NUM_CORES)
     results = pool.map(process_file, tqdm(files))
