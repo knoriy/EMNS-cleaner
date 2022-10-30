@@ -25,7 +25,7 @@ class WavFile:
 
 
 
-def get_speech_bounds(filename: str) -> (str, str):
+def get_speech_bounds(filename: str) -> tuple(str, str):
     grid = TextGrid(filename)
     grid_items = grid.items()
     word_intervals = []
@@ -56,11 +56,10 @@ def trim_audio(in_filename: str, out_filename: str, start: float, end: float, st
         return True
     except ffmpeg.Error as e:
         print(f"ffmpeg could not process file {in_filename}: {e}")
-        exit()
         return False
 
 
-def get_field_index(header: [str], to_find: str) -> int:
+def get_field_index(header:list[str], to_find: str) -> int:
     idx = 0
     for item in header:
         if item == to_find:
