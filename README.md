@@ -9,7 +9,9 @@ mfa align --clean ./processed_wavs/ english_mfa english_mfa ./emns_aligned
 ```
 
 ## Silence trimmer
-Requires ffmpeg. 
+
+Requires ffmpeg.
+
 ```bash
 usage: trim_silences.py [-h] [-c {Complete,Pending,Awaiting Review,Needs Updating}] [-d] media_root flist out_dir
 
