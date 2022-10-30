@@ -87,7 +87,7 @@ def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criteria
                 status_idx = get_field_index(line, "status")
             else:
                 # rest of file
-                if line[status_idx] in criteria:
+                if line[status_idx].lower() in criteria:
                     wav_path_abs = rd / line[filepath_idx]
                     stem = wav_path_abs.stem
                     name = wav_path_abs.name
@@ -122,8 +122,9 @@ def parse_args(args):
 if __name__=="__main__":
     args = parse_args(sys.argv[1:])
     print("Gathering filenames to process...")
-    if args.criteria != ["Complete"]:
-        incomplete_flags=set(args.criteria).difference(set(["Complete"]))
+    args.criteria = [c.lower() for c in args.criteria]
+    if args.criteria != ["complete"]:
+        incomplete_flags=set(args.criteria).difference(set(["complete"]))
         print(f"WARNING: Including incomplete/unverified audio clips with statuses in {incomplete_flags}- script may fail.")
     files, skipped = get_filenames_to_process(args.media_root, args.flist, args.out_dir, args.criteria)
     print(f"Will process {len(files)} files (skipped {skipped} because their status was not one of {args.criteria})")
