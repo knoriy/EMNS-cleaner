@@ -8,6 +8,7 @@ from functools import partial
 import ffmpeg
 from tqdm import tqdm
 from textgrids import TextGrid
+from utils import cut_audio
 
 
 
@@ -104,6 +105,8 @@ def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criterio
 
 def process_file(wavfile, start_pad=0.0, end_pad=0.0):
     s, e = get_speech_bounds(wavfile.textgrid_path)
+    s = s-start_pad
+    e = e-end_pad
     return (trim_audio(wavfile.raw_path, wavfile.out_path, s, e, start_pad, end_pad), wavfile.raw_path)
     
 
