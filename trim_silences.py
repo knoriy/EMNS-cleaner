@@ -4,6 +4,7 @@ from pathlib import Path
 import multiprocessing as mp
 from dataclasses import dataclass
 from functools import partial
+import pandas as pd
 
 import ffmpeg
 from tqdm import tqdm
@@ -25,7 +26,7 @@ class WavFile:
 
 
 
-def get_speech_bounds(filename: str) -> tuple(str, str):
+def get_speech_bounds(filename: str) -> tuple[(str, str)]:
     grid = TextGrid(filename)
     grid_items = grid.items()
     word_intervals = []
@@ -69,35 +70,24 @@ def get_field_index(header:list[str], to_find: str) -> int:
     assert False, f"{to_find} does not exist in the header: {header}"
 
 
-def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criteria=["Complete"]) -> [(str, str, str)]:
+def get_filenames_to_process(root_dir: str, filelist: str, outdir: str, criteria=["Complete"]) -> list[(str, str, str)]:
     outdir_abs = Path(outdir).resolve()
     rd = Path(root_dir).resolve()
+
+    df = pd.read_csv(filelist, '|')
+    skipped = 0
     filenames = [] # list of tuples of absolute filepaths (in_filename, textgrid_filename, out_filename)
-    with open(filelist, "r") as fh:
-        idx = 0
-        filepath_idx = 0
-        status_idx = 0
-        skipped = 0
-        for line in fh:
-            line = line.strip()
-            line = line.split("\t")
-            if idx == 0:
-                # in the header
-                filepath_idx = get_field_index(line, "audio_recording")
-                status_idx = get_field_index(line, "status")
-            else:
-                # rest of file
-                if line[status_idx].lower() in criteria:
-                    wav_path_abs = rd / line[filepath_idx]
-                    stem = wav_path_abs.stem
-                    name = wav_path_abs.name
-                    ext = name.split(".")[-1]
-                    textgrid_path_abs = rd / "emns_aligned" / f"{stem}.TextGrid"
-                    outfile_abs = outdir_abs / name
-                    filenames.append(WavFile(str(wav_path_abs), str(textgrid_path_abs), str(outfile_abs)))
-                else:
-                    skipped += 1
-            idx += 1
+    for line in df.iloc():
+        if line['status'].lower() in criteria:
+            wav_path_abs = rd / line['audio_recording']
+            stem = wav_path_abs.stem
+            name = wav_path_abs.name
+            ext = name.split(".")[-1]
+            textgrid_path_abs = rd / "raw_alignment" / f"{stem}.TextGrid"
+            outfile_abs = outdir_abs / name
+            filenames.append(WavFile(str(wav_path_abs), str(textgrid_path_abs), str(outfile_abs)))
+        else:
+            skipped += 1
 
     return filenames, skipped
 
@@ -128,11 +118,12 @@ if __name__=="__main__":
     if args.criteria != ["complete"]:
         incomplete_flags=set(args.criteria).difference(set(["complete"]))
         print(f"WARNING: Including incomplete/unverified audio clips with statuses in {incomplete_flags}- script may fail.")
+    
     files, skipped = get_filenames_to_process(args.media_root, args.flist, args.out_dir, args.criteria)
+
     print(f"Will process {len(files)} files (skipped {skipped} because their status was not one of {args.criteria})")
     DEBUG = args.debug
     ACODEC = args.acodec
-
 
     pool = mp.Pool(NUM_CORES)
     # results = pool.map(process_file, tqdm(files))
